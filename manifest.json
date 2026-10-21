@@ -1,0 +1,24 @@
+---
+
+### 📝 Archivo 2: `manifest.json`
+Este manifiesto le indica al sistema operativo del celular que el sitio web se puede instalar como una aplicación de pantalla completa.
+
+```json
+{
+  "name": "YouTube Music Libre",
+  "short_name": "YT Music PWA",
+  "description": "Reproductor de música sin anuncios y en segundo plano.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#030303",
+  "theme_color": "#030303",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://flaticon.com",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
