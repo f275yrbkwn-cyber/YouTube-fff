@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Music Libre</title>
+    <!-- Vinculación del Manifiesto PWA -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#030303">
+    <!-- Tailwind CSS para el diseño -->
+    <script src="https://jsdelivr.net"></script>
+    <!-- Iconos de Google Material Design -->
+    <link href="https://googleapis.com" rel="stylesheet">
+    <style>
+        body { background-color: #030303; color: white; font-family: 'Roboto', sans-serif; }
+    </style>
+</head>
+<body class="flex flex-col h-screen justify-between pb-24">
+
+    <!-- Encabezado y Buscador -->
+    <header class="p-4 flex items-center justify-between bg-black/80 backdrop-blur-md sticky top-0 z-50">
+        <div class="flex items-center gap-2">
+            <span class="material-icons text-red-600 text-3xl">play_circle_filled</span>
+            <span class="font-bold text-xl tracking-tight">Music</span>
+        </div>
+        <div class="flex-1 max-w-md mx-4">
+            <div class="relative">
+                <input id="search-input" type="text" placeholder="Buscar canciones, artistas..." class="w-full bg-[#212121] text-white pl-10 pr-4 py-2 rounded-full focus:outline-none focus:ring-2 focus:ring-white/20 text-sm">
+                <span class="material-icons absolute left-3 top-2 text-gray-400 text-sm">search</span>
+            </div>
+        </div>
+        <button id="search-btn" class="bg-white text-black px-4 py-1.5 rounded-full text-sm font-medium">Buscar</button>
+    </header>
+
+    <!-- Resultados de Búsqueda -->
+    <main class="flex-1 overflow-y-auto p-4 max-w-3xl mx-auto w-full">
+        <h2 class="text-xl font-bold mb-4">Resultados de búsqueda</h2>
+        <div id="results-list" class="space-y-4">
+            <p class="text-gray-400 text-sm">Busca una canción arriba para empezar a escuchar sin anuncios...</p>
+        </div>
+    </main>
+
+    <!-- Reproductor Inferior Fiel a YT Music -->
+    <footer class="fixed bottom-0 left-0 right-0 bg-[#212121] border-t border-white/10 p-3 flex flex-col gap-2 z-50">
+        <!-- Barra de progreso -->
+        <div class="w-full bg-gray-700 h-1 rounded-full overflow-hidden cursor-pointer" id="progress-container">
+            <div id="progress-bar" class="bg-red-600 h-full w-0 transition-all duration-300"></div>
+        </div>
+        
+        <div class="flex items-center justify-between px-2">
+            <!-- Info de la canción -->
+            <div class="flex items-center gap-3 w-1/3">
+                <img id="player-thumb" src="https://placeholder.com🎵" class="w-12 h-12 rounded object-cover" alt="Portada">
+                <div class="overflow-hidden">
+                    <p id="player-title" class="font-medium text-sm truncate">Ninguna canción seleccionada</p>
+                    <p id="player-author" class="text-xs text-gray-400 truncate">Selecciona una pista</p>
+                </div>
+            </div>
+
+            <!-- Controles Multimedia -->
+            <div class="flex items-center gap-6 justify-center w-1/3">
+                <button class="text-gray-400 hover:text-white"><span class="material-icons">skip_previous</span></button>
+                <button id="play-btn" class="text-white hover:scale-105 transition-transform"><span class="material-icons text-4xl" id="play-icon">play_circle</span></button>
+                <button class="text-gray-400 hover:text-white"><span class="material-icons">skip_next</span></button>
+            </div>
+
+            <!-- Ajustes extras -->
+            <div class="flex items-center gap-4 justify-end w-1/3 text-gray-400">
+                <span class="material-icons hover:text-white cursor-pointer">thumb_up</span>
+                <span class="material-icons hover:text-white cursor-pointer">volume_up</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Elemento de Audio Oculto -->
+    <audio id="audio-element" style="display: none;"></audio>
+
+    <script>
+        const audio = document.getElementById('audio-element');
+        const playBtn = document.getElementById('play-btn');
+        const playIcon = document.getElementById('play-icon');
+        const searchInput = document.getElementById('search-input');
+        const searchBtn = document.getElementById('search-btn');
+        const resultsList = document.getElementById('results-list');
+        const progressBar = document.getElementById('progress-bar');
+        
+        const playerThumb = document.getElementById('player-thumb');
+        const playerTitle = document.getElementById('player-title');
+        const playerAuthor = document.getElementById('player-author');
+
+        // Instancia pública de la API de Piped
+        const PIPED_API = "https://kavin.rocks";
+
+        // Buscar música
+        async function searchMusic() {
+            const query = searchInput.value.trim();
+            if (!query) return;
+            resultsList.innerHTML = `<p class="text-gray-400 text-sm">Buscando en YouTube...</p>`;
+
+            try {
+                const response = await fetch(`${PIPED_API}/search?q=${encodeURIComponent(query)}&filter=music_songs`);
+                const data = await response.json();
+                
+                resultsList.innerHTML = "";
+                if(!data.items || data.items.length === 0) {
+                    resultsList.innerHTML = `<p class="text-gray-400 text-sm">No se encontraron resultados.</p>`;
+                    return;
+                }
+
+                data.items.forEach(item => {
+                    if(item.type !== 'stream') return;
+                    
+                    const row = document.createElement('div');
+                    row.className = "flex items-center justify-between p-2 hover:bg-white/5 rounded-lg cursor-pointer transition-colors";
+                    
+                    // Extraer ID del video de la URL de Piped
+                    const videoId = item.url.split('v=')[1];
+                    row.onclick = () => loadTrack(videoId, item.title, item.uploaderName, item.thumbnail);
+                    
+                    row.innerHTML = `
+                        <div class="flex items-center gap-3">
+                            <img src="${item.thumbnail}" class="w-12 h-12 rounded object-cover">
+                            <div>
+                                <p class="font-medium text-sm line-clamp-1">${item.title}</p>
+                                <p class="text-xs text-gray-400">${item.uploaderName}</p>
+                            </div>
+                        </div>
+                        <span class="material-icons text-gray-400">play_arrow</span>
+                    `;
+                    resultsList.appendChild(row);
+                });
+            } catch (error) {
+                resultsList.innerHTML = `<p class="text-red-500 text-sm">Error de conexión. Inténtalo de nuevo.</p>`;
+            }
+        }
+
+        // Cargar y reproducir audio limpio (sin anuncios)
+        async function loadTrack(videoId, title, author, thumbnail) {
+            playerTitle.textContent = "Cargando audio...";
+            playerAuthor.textContent = "";
+            
+            try {
+                const response = await fetch(`${PIPED_API}/streams/${videoId}`);
+                const data = await response.json();
+                
+                // Obtener el flujo de audio con mejor calidad
+                const audioStream = data.audioStreams.reduce((prev, curr) => (prev.bitrate > curr.bitrate) ? prev : curr);
+                
+                if (audioStream && audioStream.url) {
+                    audio.src = audioStream.url;
+                    audio.play();
+                    
+                    playerTitle.textContent = title;
+                    playerAuthor.textContent = author;
+                    playerThumb.src = thumbnail;
+                    playIcon.textContent = "pause_circle";
+
+                    // Integración nativa con la pantalla de bloqueo (Segundo Plano)
+                    if ('mediaSession' in navigator) {
+                        navigator.mediaSession.metadata = new MediaMetadata({
+                            title: title,
+                            artist: author,
+                            artwork: [{ src: thumbnail, sizes: '512x512', type: 'image/jpeg' }]
+                        });
+                        
+                        navigator.mediaSession.setActionHandler('play', () => { audio.play(); playIcon.textContent = "pause_circle"; });
+                        navigator.mediaSession.setActionHandler('pause', () => { audio.pause(); playIcon.textContent = "play_circle"; });
+                    }
+                }
+            } catch (error) {
+                playerTitle.textContent = "Error al cargar la pista";
+            }
+        }
+
+        playBtn.addEventListener('click', () => {
+            if (audio.paused) {
+                audio.play();
+                playIcon.textContent = "pause_circle";
+            } else {
+                audio.pause();
+                playIcon.textContent = "play_circle";
+            }
+        });
+
+        audio.addEventListener('timeupdate', () => {
+            const progress = (audio.currentTime / audio.duration) * 100;
+            progressBar.style.width = `${progress}%`;
+        });
+
+        searchBtn.addEventListener('click', searchMusic);
+        searchInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') searchMusic(); });
+
+        // REGISTRO AUTOMÁTICO DEL SERVICE WORKER (PWA)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('PWA: Service Worker listo', reg))
